@@ -34,6 +34,23 @@ else
     echo "✅ NixOS ISO already present"
 fi
 
+# Check for required dependencies
+if ! command -v qemu-img &> /dev/null; then
+    echo "❌ qemu-img not found!"
+    echo "💡 To install dependencies:"
+    echo "   1. Install direnv: your package manager should have it"
+    echo "   2. Run: direnv allow"
+    echo "   3. Or manually enter nix shell: nix develop"
+    echo "   4. Or install qemu: nix-env -iA nixpkgs.qemu"
+    exit 1
+fi
+
+if ! command -v qemu-system-x86_64 &> /dev/null; then
+    echo "❌ qemu-system-x86_64 not found!"
+    echo "💡 Please install QEMU (see above instructions)"
+    exit 1
+fi
+
 # Create disk image if not present
 if [ ! -f "$DISK_FILE" ]; then
     echo "💾 Creating VM disk image..."
