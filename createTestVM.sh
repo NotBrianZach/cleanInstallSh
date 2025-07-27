@@ -81,18 +81,33 @@ echo ""
 # Check if we should boot from ISO (fresh install) or disk (existing install)
 if [ "\${1:-}" = "--install" ]; then
     echo "🔄 Booting from ISO for fresh installation..."
-    BOOT_ORDER="d"
+    BOOT_ORDER="d,c"
     CDROM_ARGS="-cdrom $ISO_FILE"
 else
     echo "🔄 Booting from disk..."
-    BOOT_ORDER="c"
-    CDROM_ARGS=""
+    # Check if disk has been installed to
+    if qemu-img info "$DISK_FILE" | grep -q "virtual size: 20 GiB (21474836480 bytes)"; then
+        # Disk exists but might be empty, try disk first then ISO as fallback
+        BOOT_ORDER="c,d"
+        CDROM_ARGS="-cdrom $ISO_FILE"
+        echo "⚠️  If disk is not bootable, VM will fallback to ISO"
+    else
+        BOOT_ORDER="c"
+        CDROM_ARGS=""
+    fi
+fi
+
+# Use KVM if available, otherwise fall back to TCG
+if [ -e /dev/kvm ]; then
+    ACCEL_ARGS="-machine type=q35,accel=kvm -cpu host"
+else
+    ACCEL_ARGS="-machine type=q35,accel=tcg -cpu qemu64"
+    echo "⚠️  KVM not available, using slower TCG acceleration"
 fi
 
 exec qemu-system-x86_64 \\
     -name "$VM_NAME" \\
-    -machine type=q35,accel=kvm \\
-    -cpu host \\
+    \$ACCEL_ARGS \\
     -smp "$CORES" \\
     -m "$RAM" \\
     -drive file="$DISK_FILE",format=qcow2,if=virtio \\
