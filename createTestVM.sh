@@ -78,22 +78,25 @@ echo "   - Press Ctrl+Alt+F to toggle fullscreen"
 echo "   - Close window or press Ctrl+C in this terminal to stop VM"
 echo ""
 
-# Check if we should boot from ISO (fresh install) or disk (existing install)
+# Always include the ISO for fallback, but change boot priority
+CDROM_ARGS="-cdrom $ISO_FILE"
+
 if [ "\${1:-}" = "--install" ]; then
     echo "🔄 Booting from ISO for fresh installation..."
     BOOT_ORDER="d,c"
-    CDROM_ARGS="-cdrom $ISO_FILE"
 else
-    echo "🔄 Booting from disk..."
-    # Check if disk has been installed to
-    if qemu-img info "$DISK_FILE" | grep -q "virtual size: 20 GiB (21474836480 bytes)"; then
-        # Disk exists but might be empty, try disk first then ISO as fallback
-        BOOT_ORDER="c,d"
-        CDROM_ARGS="-cdrom $ISO_FILE"
-        echo "⚠️  If disk is not bootable, VM will fallback to ISO"
+    echo "🔄 Booting from disk with ISO fallback..."
+    # Check if disk appears to have been installed to by looking at actual usage
+    DISK_INFO=\$(qemu-img info "$DISK_FILE")
+    ACTUAL_SIZE=\$(echo "\$DISK_INFO" | grep "disk size:" | awk '{print \$3}')
+    
+    # If disk size is very small (< 100MB), it's probably empty
+    if [ "\${ACTUAL_SIZE:-0}" = "0" ] || [ "\${ACTUAL_SIZE:-0}" -lt 100000000 ]; then
+        echo "⚠️  Disk appears empty, will boot from ISO"
+        BOOT_ORDER="d,c"
     else
-        BOOT_ORDER="c"
-        CDROM_ARGS=""
+        echo "✅ Disk appears to have data, trying disk first with ISO fallback"
+        BOOT_ORDER="c,d"
     fi
 fi
 
